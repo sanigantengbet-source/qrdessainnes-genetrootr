@@ -1,0 +1,6 @@
+{
+  "name": "QR Design Generator",
+  "description": "Professional Neo-Brutalist QR Code generator with 100+ visual QR styles, 100+ modern QR card themes (QRIS, fluid waves, geometric, standees), live canvas preview, and high-resolution exports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
