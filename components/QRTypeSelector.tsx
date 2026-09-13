@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import {
   Link2,
   FileText,
@@ -63,7 +63,22 @@ function getIcon(name: string) {
   }
 }
 
-export default function QRTypeSelector({ selectedType, onSelectType }: QRTypeSelectorProps) {
+function QRTypeSelectorComponent({ selectedType, onSelectType }: QRTypeSelectorProps) {
+  const [optimisticType, setOptimisticType] = useState<QRType | null>(null);
+  const activeType = optimisticType ?? selectedType;
+  const [, startTransition] = useTransition();
+
+  if (optimisticType !== null && optimisticType === selectedType) {
+    setOptimisticType(null);
+  }
+
+  const handleSelect = useCallback((type: QRType) => {
+    setOptimisticType(type);
+    startTransition(() => {
+      onSelectType(type);
+    });
+  }, [onSelectType]);
+
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-2">
@@ -71,20 +86,23 @@ export default function QRTypeSelector({ selectedType, onSelectType }: QRTypeSel
           <span className="w-2.5 h-2.5 bg-black inline-block"></span>
           1. Select QR Code Type
         </label>
-        <span className="text-[11px] font-bold text-neutral-600">
-          {QR_TYPE_OPTIONS.find((t) => t.id === selectedType)?.label}
+        <span className="text-[11px] font-bold text-neutral-600 font-mono">
+          {QR_TYPE_OPTIONS.find((t) => t.id === activeType)?.label}
         </span>
       </div>
 
       {/* Horizontal scrolling ribbon on mobile, wrapping grid on desktop */}
       <div className="flex overflow-x-auto pb-2 gap-2 sm:grid sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-6 no-scrollbar">
         {QR_TYPE_OPTIONS.map((opt) => {
-          const isSelected = selectedType === opt.id;
+          const isSelected = activeType === opt.id;
           return (
             <button
               key={opt.id}
               type="button"
-              onClick={() => onSelectType(opt.id)}
+              onClick={(e) => {
+                e.preventDefault();
+                handleSelect(opt.id);
+              }}
               className={`flex-shrink-0 flex items-center sm:flex-col sm:justify-center gap-2 px-3 py-2 sm:py-2.5 border-2 border-black text-left sm:text-center transition-all min-w-[130px] sm:min-w-0 ${
                 isSelected
                   ? 'bg-black text-[#FFE600] font-black shadow-[3px_3px_0px_0px_#FFE600] translate-x-[-1px] translate-y-[-1px]'
@@ -108,3 +126,7 @@ export default function QRTypeSelector({ selectedType, onSelectType }: QRTypeSel
     </div>
   );
 }
+
+const QRTypeSelector = React.memo(QRTypeSelectorComponent);
+export default QRTypeSelector;
+
