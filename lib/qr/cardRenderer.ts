@@ -420,12 +420,19 @@ export function generateQRCardWithThemeSVG(options: RenderCardThemeOptions): str
   `.trim();
 }
 
+const MINI_THEME_PREVIEW_CACHE = new Map<string, string>();
+
 /**
  * Lightweight, instant Miniature Preview Generator for the Card Theme Selector Grid.
  * Renders an authentic miniature vector card with sample QR so all 100+ cards
- * load instantaneously with 0 lag.
+ * load instantaneously with 0 lag. Memoized per theme to avoid recomputations.
  */
 export function renderCardThemeMiniPreviewSVG(theme: CardTheme, sampleTitle: string = 'SANN STORE'): string {
+  const cacheKey = `${theme.id}_${theme.customBackgroundImage ? 'custom' : 'preset'}_${theme.cardBg}`;
+  if (MINI_THEME_PREVIEW_CACHE.has(cacheKey)) {
+    return MINI_THEME_PREVIEW_CACHE.get(cacheKey)!;
+  }
+
   const w = theme.dimensions.width;
   const h = theme.dimensions.height;
 
@@ -442,7 +449,7 @@ export function renderCardThemeMiniPreviewSVG(theme: CardTheme, sampleTitle: str
   const title = escapeXML(sampleTitle);
   const badge = escapeXML(theme.header.badgeText || 'SCAN ME');
 
-  return `
+  const result = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="100%" shape-rendering="geometricPrecision">
       <defs>
         ${
@@ -541,4 +548,7 @@ export function renderCardThemeMiniPreviewSVG(theme: CardTheme, sampleTitle: str
       </g>
     </svg>
   `.trim();
+
+  MINI_THEME_PREVIEW_CACHE.set(cacheKey, result);
+  return result;
 }
