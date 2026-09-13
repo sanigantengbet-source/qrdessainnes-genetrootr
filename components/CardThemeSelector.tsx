@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect, useTransition } from 'react';
 import { CardTheme, CardCategory } from '@/types/cardTheme';
 import { CARD_CATEGORIES, ALL_CARD_THEMES } from '@/lib/constants/cardThemes';
 import { renderCardThemeMiniPreviewSVG } from '@/lib/qr/cardRenderer';
@@ -23,7 +23,71 @@ interface CardThemeSelectorProps {
   currentTheme?: CardTheme;
 }
 
-export default function CardThemeSelector({
+const ThemeCardItem = React.memo(function ThemeCardItem({
+  theme,
+  isSelected,
+  onSelect,
+}: {
+  theme: CardTheme;
+  isSelected: boolean;
+  onSelect: (theme: CardTheme) => void;
+}) {
+  const miniSvg = useMemo(() => {
+    return renderCardThemeMiniPreviewSVG(theme, 'SANN STORE');
+  }, [theme]);
+
+  return (
+    <div
+      onClick={(e) => {
+        e.preventDefault();
+        onSelect(theme);
+      }}
+      className={`group relative flex flex-col bg-[#FFFDF8] border-2 cursor-pointer transition-all ${
+        isSelected
+          ? 'border-black ring-4 ring-[#FFE600] shadow-[4px_4px_0px_0px_#000] scale-[1.01]'
+          : 'border-black hover:border-black hover:shadow-[3px_3px_0px_0px_#000]'
+      }`}
+    >
+      {/* Selected Floating Checkmark Badge */}
+      {isSelected && (
+        <div className="absolute top-2 right-2 z-10 w-5 h-5 bg-black text-[#FFE600] border-2 border-[#FFE600] flex items-center justify-center rounded-full shadow-md">
+          <Check className="w-3.5 h-3.5 stroke-[3]" />
+        </div>
+      )}
+
+      {/* Miniature Card Canvas Preview */}
+      <div className="w-full aspect-[3/4] bg-neutral-100 p-2 flex items-center justify-center overflow-hidden border-b-2 border-black">
+        <div
+          className="w-full h-full flex items-center justify-center transition-transform group-hover:scale-105 duration-200"
+          dangerouslySetInnerHTML={{ __html: miniSvg }}
+        />
+      </div>
+
+      {/* Theme Details Footer */}
+      <div className="p-2 sm:p-2.5 flex flex-col justify-between flex-1 bg-white">
+        <div>
+          <div className="flex items-center justify-between gap-1 mb-1">
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-[#F5F2EB] text-neutral-700 border border-black/30 rounded truncate">
+              {theme.category}
+            </span>
+            <span className="text-[9px] font-mono text-neutral-500 uppercase">
+              {theme.dimensions.height === 640 ? '1:1 Sq' : 'Stand'}
+            </span>
+          </div>
+          <h4 className="text-xs font-black text-black leading-tight line-clamp-1">
+            {theme.name}
+          </h4>
+        </div>
+
+        <p className="text-[10px] text-neutral-500 leading-snug line-clamp-1 mt-1 font-sans">
+          {theme.description}
+        </p>
+      </div>
+    </div>
+  );
+});
+
+function CardThemeSelectorComponent({
   selectedThemeId,
   onSelectTheme,
   qrName = 'SANN STORE',
@@ -33,6 +97,22 @@ export default function CardThemeSelector({
   const [activeTab, setActiveTab] = useState<'presets' | 'custom'>(() =>
     selectedThemeId.startsWith('custom-card') ? 'custom' : 'presets'
   );
+
+  // Local optimistic selection for zero-delay visual response
+  const [optimisticThemeId, setOptimisticThemeId] = useState<string | null>(null);
+  const activeSelectedId = optimisticThemeId ?? selectedThemeId;
+  const [, startTransition] = useTransition();
+
+  if (optimisticThemeId !== null && optimisticThemeId === selectedThemeId) {
+    setOptimisticThemeId(null);
+  }
+
+  const handleSelectThemeOptimistic = useCallback((theme: CardTheme) => {
+    setOptimisticThemeId(theme.id);
+    startTransition(() => {
+      onSelectTheme(theme);
+    });
+  }, [onSelectTheme]);
 
   // Existing themes state
   const [activeCategory, setActiveCategory] = useState<CardCategory | 'All'>('All');
@@ -277,58 +357,14 @@ export default function CardThemeSelector({
 
           {/* Miniature Card Previews Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 pt-1">
-            {visibleThemes.map((theme) => {
-              const isSelected = theme.id === selectedThemeId;
-              const miniSvg = renderCardThemeMiniPreviewSVG(theme, qrName || 'SANN STORE');
-
-              return (
-                <div
-                  key={theme.id}
-                  onClick={() => onSelectTheme(theme)}
-                  className={`group relative flex flex-col bg-[#FFFDF8] border-2 cursor-pointer transition-all ${
-                    isSelected
-                      ? 'border-black ring-4 ring-[#FFE600] shadow-[4px_4px_0px_0px_#000] scale-[1.01]'
-                      : 'border-black hover:border-black hover:shadow-[3px_3px_0px_0px_#000]'
-                  }`}
-                >
-                  {/* Selected Floating Checkmark Badge */}
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 z-10 w-5 h-5 bg-black text-[#FFE600] border-2 border-[#FFE600] flex items-center justify-center rounded-full shadow-md">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    </div>
-                  )}
-
-                  {/* Miniature Card Canvas Preview */}
-                  <div className="w-full aspect-[3/4] bg-neutral-100 p-2 flex items-center justify-center overflow-hidden border-b-2 border-black">
-                    <div
-                      className="w-full h-full flex items-center justify-center transition-transform group-hover:scale-105 duration-200"
-                      dangerouslySetInnerHTML={{ __html: miniSvg }}
-                    />
-                  </div>
-
-                  {/* Theme Details Footer */}
-                  <div className="p-2 sm:p-2.5 flex flex-col justify-between flex-1 bg-white">
-                    <div>
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-[#F5F2EB] text-neutral-700 border border-black/30 rounded truncate">
-                          {theme.category}
-                        </span>
-                        <span className="text-[9px] font-mono text-neutral-500 uppercase">
-                          {theme.dimensions.height === 640 ? '1:1 Sq' : 'Stand'}
-                        </span>
-                      </div>
-                      <h4 className="text-xs font-black text-black leading-tight line-clamp-1">
-                        {theme.name}
-                      </h4>
-                    </div>
-
-                    <p className="text-[10px] text-neutral-500 leading-snug line-clamp-1 mt-1 font-sans">
-                      {theme.description}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+            {visibleThemes.map((theme) => (
+              <ThemeCardItem
+                key={theme.id}
+                theme={theme}
+                isSelected={theme.id === activeSelectedId}
+                onSelect={handleSelectThemeOptimistic}
+              />
+            ))}
           </div>
 
           {/* Empty State */}
@@ -541,3 +577,6 @@ export default function CardThemeSelector({
     </div>
   );
 }
+
+const CardThemeSelector = React.memo(CardThemeSelectorComponent);
+export default CardThemeSelector;
