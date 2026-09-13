@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useTransition } from 'react';
 import { QRDesignConfig, DotStyle, CornerSquareStyle, CornerDotStyle, FrameConfig } from '@/types/qr';
 import { FRAME_PRESETS, FRAME_CATEGORIES } from '@/lib/constants/frames';
 import { FONT_DEFINITIONS, FONT_CATEGORIES } from '@/lib/constants/fonts';
@@ -27,6 +27,7 @@ import {
   X,
   Sparkles,
   Info,
+  Check,
 } from 'lucide-react';
 
 interface CustomizationPanelProps {
@@ -34,6 +35,44 @@ interface CustomizationPanelProps {
   onChange: (updater: (prev: QRDesignConfig) => QRDesignConfig) => void;
   onAutoFixReadability?: () => void;
 }
+
+const FontGridItem = React.memo(function FontGridItem({
+  font,
+  isSelected,
+  onSelect,
+}: {
+  font: (typeof FONT_DEFINITIONS)[0];
+  isSelected: boolean;
+  onSelect: (font: (typeof FONT_DEFINITIONS)[0]) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        onSelect(font);
+      }}
+      className={`p-2.5 border-2 border-black text-left transition-all ${
+        isSelected
+          ? 'bg-[#FFE600] text-black shadow-[2px_2px_0px_0px_#000] font-black scale-[1.01]'
+          : 'bg-white text-black hover:bg-neutral-50 shadow-[1px_1px_0px_0px_#000]'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 bg-neutral-100 border border-black/30 rounded uppercase text-neutral-600 truncate">
+          {font.category}
+        </span>
+        {isSelected && (
+          <span className="text-[9px] font-black text-black flex items-center gap-0.5">
+            <Check className="w-2.5 h-2.5 stroke-[3]" />
+          </span>
+        )}
+      </div>
+      <div className="text-xs font-black text-black truncate leading-tight">{font.name}</div>
+      <div className="text-[10px] text-neutral-500 font-mono mt-0.5">Aa 123</div>
+    </button>
+  );
+});
 
 const DOT_STYLES: { id: DotStyle; label: string }[] = [
   { id: 'square', label: 'Square' },
@@ -75,10 +114,34 @@ const CORNER_DOT_STYLES: { id: CornerDotStyle; label: string }[] = [
   { id: 'heart', label: 'Heart' },
 ];
 
-export default function CustomizationPanel({ config, onChange }: CustomizationPanelProps) {
+function CustomizationPanelComponent({ config, onChange }: CustomizationPanelProps) {
   const [activeTab, setActiveTab] = useState<'shapes' | 'colors' | 'frames' | 'fonts' | 'logo' | 'advanced'>('shapes');
   const [frameCategory, setFrameCategory] = useState<string>('All');
   const [fontCategory, setFontCategory] = useState<string>('Sans');
+  const [, startTransition] = useTransition();
+
+  const handleSelectFont = useCallback((font: (typeof FONT_DEFINITIONS)[0]) => {
+    // Non-blocking Google font link injection
+    if (typeof window !== 'undefined') {
+      requestAnimationFrame(() => {
+        loadGoogleFontInDocument(font.family);
+      });
+    }
+
+    startTransition(() => {
+      onChange((prev) => ({
+        ...prev,
+        typography: {
+          fontSize: prev.typography?.fontSize ?? 16,
+          fontWeight: prev.typography?.fontWeight ?? '800',
+          letterSpacing: prev.typography?.letterSpacing ?? 1,
+          textTransform: prev.typography?.textTransform ?? 'uppercase',
+          fontId: font.id,
+          fontFamily: font.family,
+        },
+      }));
+    });
+  }, [onChange]);
 
   // Handle Logo Upload safely
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -949,38 +1012,14 @@ export default function CustomizationPanel({ config, onChange }: CustomizationPa
 
           {/* Fonts Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[260px] overflow-y-auto pr-1 no-scrollbar">
-            {filteredFonts.map((f) => {
-              const isSelected = config.typography?.fontId === f.id;
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => {
-                    loadGoogleFontInDocument(f.family);
-                    onChange((prev) => ({
-                      ...prev,
-                      typography: {
-                        fontSize: prev.typography?.fontSize ?? 16,
-                        fontWeight: prev.typography?.fontWeight ?? '800',
-                        letterSpacing: prev.typography?.letterSpacing ?? 1,
-                        textTransform: prev.typography?.textTransform ?? 'uppercase',
-                        fontId: f.id,
-                        fontFamily: f.family,
-                      },
-                    }));
-                  }}
-                  style={{ fontFamily: f.family }}
-                  className={`p-2.5 border-2 border-black text-left transition-all ${
-                    isSelected
-                      ? 'bg-[#FFE600] text-black shadow-[2px_2px_0px_0px_#000] font-black'
-                      : 'bg-white text-black hover:bg-neutral-50 shadow-[1px_1px_0px_0px_#000]'
-                  }`}
-                >
-                  <div className="text-sm font-bold truncate">Ag 123</div>
-                  <div className="text-[11px] font-bold text-neutral-800 truncate">{f.name}</div>
-                </button>
-              );
-            })}
+            {filteredFonts.map((f) => (
+              <FontGridItem
+                key={f.id}
+                font={f}
+                isSelected={config.typography?.fontId === f.id}
+                onSelect={handleSelectFont}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -1253,3 +1292,7 @@ export default function CustomizationPanel({ config, onChange }: CustomizationPa
     </div>
   );
 }
+
+const CustomizationPanel = React.memo(CustomizationPanelComponent);
+export default CustomizationPanel;
+
