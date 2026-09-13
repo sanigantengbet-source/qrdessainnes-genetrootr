@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
 import QRTypeSelector from '@/components/QRTypeSelector';
@@ -32,6 +32,7 @@ export default function Home() {
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [isBatchOpen, setIsBatchOpen] = useState(false);
+  const [, startTransition] = useTransition();
 
   // Generate QR SVG whenever form or design state changes
   const updateQR = useCallback(() => {
@@ -39,7 +40,6 @@ export default function Home() {
       setIsGenerating(true);
       const payload = encodeQRPayload(formData);
       const readResult = evaluateQRReadability(designConfig);
-      setReadability(readResult);
 
       // Standalone QR code
       const svg = generateQRSVG({
@@ -49,7 +49,6 @@ export default function Home() {
         renderSize: 500,
         idPrefix: 'main-qr',
       });
-      setSvgMarkup(svg);
 
       // Presentation card (QR Card Theme layout)
       const cardSvg = generateQRCardSVG({
@@ -61,7 +60,12 @@ export default function Home() {
         renderWidth: selectedCardTheme.dimensions.width,
         renderHeight: selectedCardTheme.dimensions.height,
       });
-      setCardSvgMarkup(cardSvg);
+
+      startTransition(() => {
+        setReadability(readResult);
+        setSvgMarkup(svg);
+        setCardSvgMarkup(cardSvg);
+      });
     } catch (err) {
       console.error('QR Generation failed:', err);
     } finally {
@@ -69,67 +73,80 @@ export default function Home() {
     }
   }, [formData, designConfig, selectedCardTheme]);
 
-  // Debounced effect for smooth typing
+  // Debounced effect for smooth typing & rapid slider interactions
   useEffect(() => {
     const timer = setTimeout(() => {
       updateQR();
-    }, 60);
+    }, 80);
     return () => clearTimeout(timer);
   }, [updateQR]);
 
   // Handle QR Type change
-  const handleSelectType = (type: QRType) => {
-    setFormData((prev) => ({
-      ...prev,
-      type,
-    }));
-  };
+  const handleSelectType = useCallback((type: QRType) => {
+    startTransition(() => {
+      setFormData((prev) => ({
+        ...prev,
+        type,
+      }));
+    });
+  }, []);
 
   // Handle Preset Selection
-  const handleSelectPreset = (preset: StylePreset) => {
-    setDesignConfig((prev) => ({
-      ...prev,
-      ...preset.config,
-      // Preserve user custom logo or custom frame text if set
-      logo: prev.logo?.dataUrl ? prev.logo : preset.config.logo,
-      frame: prev.frame?.text
-        ? {
-            ...(preset.config.frame || prev.frame),
-            text: prev.frame.text,
-            subtext: prev.frame.subtext,
-          }
-        : preset.config.frame,
-    }));
-  };
+  const handleSelectPreset = useCallback((preset: StylePreset) => {
+    startTransition(() => {
+      setDesignConfig((prev) => ({
+        ...prev,
+        ...preset.config,
+        // Preserve user custom logo or custom frame text if set
+        logo: prev.logo?.dataUrl ? prev.logo : preset.config.logo,
+        frame: prev.frame?.text
+          ? {
+              ...(preset.config.frame || prev.frame),
+              text: prev.frame.text,
+              subtext: prev.frame.subtext,
+            }
+          : preset.config.frame,
+      }));
+    });
+  }, []);
+
+  // Handle Card Theme Selection
+  const handleSelectCardTheme = useCallback((theme: CardTheme) => {
+    startTransition(() => {
+      setSelectedCardTheme(theme);
+    });
+  }, []);
 
   // Auto-Fix Readability
-  const handleAutoFixReadability = () => {
-    setDesignConfig((prev) => {
-      const next = { ...prev };
-      // If low contrast, reset to high-contrast monochrome or deep dark
-      if (readability.contrastRatio < 4.5) {
-        next.foreground = '#000000';
-        next.background = '#FFFFFF';
-        if (next.gradient) {
-          next.gradient = { ...next.gradient, type: 'none' };
+  const handleAutoFixReadability = useCallback(() => {
+    startTransition(() => {
+      setDesignConfig((prev) => {
+        const next = { ...prev };
+        // If low contrast, reset to high-contrast monochrome or deep dark
+        if (readability.contrastRatio < 4.5) {
+          next.foreground = '#000000';
+          next.background = '#FFFFFF';
+          if (next.gradient) {
+            next.gradient = { ...next.gradient, type: 'none' };
+          }
         }
-      }
-      // Ensure quiet zone >= 4
-      if (next.quietZone < 3) {
-        next.quietZone = 4;
-      }
-      // If logo exists, guarantee error correction H and safe logo size <= 20
-      if (next.logo?.dataUrl) {
-        next.errorCorrectionLevel = 'H';
-        next.logo = {
-          ...next.logo,
-          size: Math.min(next.logo.size, 20),
-          padding: Math.max(next.logo.padding, 6),
-        };
-      }
-      return next;
+        // Ensure quiet zone >= 4
+        if (next.quietZone < 3) {
+          next.quietZone = 4;
+        }
+        // If logo exists, guarantee error correction H and safe logo size <= 20
+        if (next.logo?.dataUrl) {
+          next.errorCorrectionLevel = 'H';
+          next.logo = {
+            ...next.logo,
+            size: Math.min(next.logo.size, 20),
+            padding: Math.max(next.logo.padding, 6),
+          };
+        }
+        return next;
+      });
     });
-  };
+  }, [readability.contrastRatio]);
 
   // Reset to default
   const handleResetDefaults = () => {
@@ -183,7 +200,7 @@ export default function Home() {
             <section>
               <CardThemeSelector
                 selectedThemeId={selectedCardTheme.id}
-                onSelectTheme={setSelectedCardTheme}
+                onSelectTheme={handleSelectCardTheme}
                 qrName={formData.qrName}
                 currentTheme={selectedCardTheme}
               />
