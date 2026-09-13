@@ -10,7 +10,7 @@ interface QRFormInputsProps {
   onChange: (updater: (prev: QRFormData) => QRFormData) => void;
 }
 
-export default function QRFormInputs({ formData, onChange }: QRFormInputsProps) {
+function QRFormInputsComponent({ formData, onChange }: QRFormInputsProps) {
   const { type, qrName } = formData;
   const sampleFilename = slugifyFilename(qrName || 'my-qr', 'png');
 
@@ -613,3 +613,7 @@ export default function QRFormInputs({ formData, onChange }: QRFormInputsProps) 
     </div>
   );
 }
+
+const QRFormInputs = React.memo(QRFormInputsComponent);
+export default QRFormInputs;
+
